@@ -1,0 +1,149 @@
+### Arquivo de testes (extensão REST Client do VS Code)
+### Antes: npx prisma migrate reset --force && npx prisma generate && npx prisma db seed
+### (IDs usados abaixo assumem o banco recém-populado: chamados 1 e 2 = Ana, 3 = Bruno)
+
+@baseUrl = http://localhost:3000
+
+### GET / (API no ar)
+GET {{baseUrl}}/
+
+### T1 - Cadastro válido (resposta sem senha) -> 201
+### (para repetir, troque o e-mail ou resete o banco)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "nome": "Carla Teste", "email": "carla@suporte.com", "password": "Senha@123" }
+
+### T2 - Cadastro com e-mail repetido -> 409
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "nome": "Ana Souza", "email": "ana@suporte.com", "password": "Senha@123" }
+
+### Cadastro inválido (senha curta) -> 400
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "nome": "Dani", "email": "dani@suporte.com", "password": "123" }
+
+### Logins (guardam o token em variáveis)
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@suporte.com", "password": "Senha@123" }
+
+###
+@tokenAdmin = {{loginAdmin.response.body.token}}
+
+# @name loginAna
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "ana@suporte.com", "password": "Senha@123" }
+
+###
+@tokenAna = {{loginAna.response.body.token}}
+
+# @name loginBruno
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "bruno@suporte.com", "password": "Senha@123" }
+
+###
+@tokenBruno = {{loginBruno.response.body.token}}
+
+### T3 - Login com senha errada -> 401
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "ana@suporte.com", "password": "senha-errada" }
+
+### T4 - Rota protegida sem token -> 401
+GET {{baseUrl}}/auth/me
+
+### 401 - Formato errado (sem "Bearer")
+GET {{baseUrl}}/auth/me
+Authorization: {{tokenAna}}
+
+### 401 - Token inválido
+GET {{baseUrl}}/auth/me
+Authorization: Bearer token.invalido.aqui
+
+### T5 - Rota protegida com token válido -> 200
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{tokenAna}}
+
+### USER vê só os seus chamados -> 200
+GET {{baseUrl}}/chamados
+Authorization: Bearer {{tokenAna}}
+
+### ADMIN vê todos os chamados -> 200
+GET {{baseUrl}}/chamados
+Authorization: Bearer {{tokenAdmin}}
+
+### T6 - Criar chamado tentando mandar o dono no body (donoId é ignorado) -> 201
+POST {{baseUrl}}/chamados
+Authorization: Bearer {{tokenAna}}
+Content-Type: application/json
+
+{ "titulo": "Teclado com defeito", "descricao": "Teclas travando.", "donoId": 3 }
+
+### Dono edita o próprio chamado -> 200
+PUT {{baseUrl}}/chamados/1
+Authorization: Bearer {{tokenAna}}
+Content-Type: application/json
+
+{ "descricao": "A impressora do laboratório 2 está sem toner há 3 dias." }
+
+### T7 - USER alterando chamado de outro USER (Ana no chamado 3 do Bruno) -> 403
+PUT {{baseUrl}}/chamados/3
+Authorization: Bearer {{tokenAna}}
+Content-Type: application/json
+
+{ "titulo": "Tentando alterar o chamado do Bruno" }
+
+### USER tentando mudar o status do próprio chamado -> 403
+PUT {{baseUrl}}/chamados/1
+Authorization: Bearer {{tokenAna}}
+Content-Type: application/json
+
+{ "status": "FECHADO" }
+
+### ADMIN fecha qualquer chamado -> 200
+PUT {{baseUrl}}/chamados/3
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "status": "FECHADO" }
+
+### T10 - Recurso inexistente -> 404
+DELETE {{baseUrl}}/chamados/9999
+Authorization: Bearer {{tokenAna}}
+
+### Dono remove o próprio chamado -> 204
+DELETE {{baseUrl}}/chamados/2
+Authorization: Bearer {{tokenAna}}
+
+### T8 - USER em rota de ADMIN -> 403
+GET {{baseUrl}}/users
+Authorization: Bearer {{tokenAna}}
+
+### T9 - ADMIN em rota de ADMIN -> 200
+GET {{baseUrl}}/users
+Authorization: Bearer {{tokenAdmin}}
+
+### ADMIN altera perfil (valor inválido -> 400)
+PATCH {{baseUrl}}/users/2/role
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "role": "SUPERUSER" }
+
+### ADMIN altera perfil (válido -> 200)
+PATCH {{baseUrl}}/users/3/role
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "role": "ADMIN" }
