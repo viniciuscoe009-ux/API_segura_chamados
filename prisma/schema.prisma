@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum StatusChamado {
+  ABERTO
+  EM_ANDAMENTO
+  FECHADO
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  nome      String
+  email     String    @unique
+  password  String
+  role      Role      @default(USER)
+  chamados  Chamado[]
+  createdAt DateTime  @default(now())
+}
+
+model Chamado {
+  id        Int           @id @default(autoincrement())
+  titulo    String
+  descricao String
+  status    StatusChamado @default(ABERTO)
+  donoId    Int
+  dono      User          @relation(fields: [donoId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
